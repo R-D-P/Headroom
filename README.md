@@ -103,3 +103,7 @@ build/Debug/Headroom.app/Contents/MacOS/Headroom --stop "Meteor dev server"
 
 The app is unsandboxed (it has to see and signal other processes), so it cannot go on the App
 Store. It is distributed outside the store, signed with Developer ID and notarized.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
