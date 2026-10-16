@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CPUGroupRowView: View {
   let group: CPUGroup
+  let sortKey: ListSort.Key
   let isBusy: Bool
   let onAction: (GroupAction, MemoryGroup) -> Void
 
@@ -14,15 +15,19 @@ struct CPUGroupRowView: View {
         icon
         GroupSummaryView(
           title: group.title, details: group.details, explanation: group.explanation,
-          isOrphaned: group.memoryGroup?.isOrphaned ?? false, isExpanded: isExpanded)
-        Spacer(minLength: 8)
-        VStack(alignment: .trailing, spacing: 6) {
-          Text(PercentFormatting.string(group.share))
-            .font(.system(size: 13, weight: .semibold).monospacedDigit())
-          if let memoryGroup = group.memoryGroup {
-            GroupActionButtons(group: memoryGroup, isBusy: isBusy) { action in
-              onAction(action, memoryGroup)
+          isOrphaned: group.memoryGroup?.isOrphaned ?? false, isExpanded: isExpanded
+        ) {
+          HStack(spacing: 8) {
+            if let memoryGroup = group.memoryGroup {
+              ActionSegmentsView(group: memoryGroup, isBusy: isBusy) { action in
+                onAction(action, memoryGroup)
+              }
             }
+            MetricSegmentsView(
+              memory: group.memoryGroup.map { ByteFormatting.string($0.footprintBytes) },
+              memoryTint: group.memoryGroup.flatMap(FootprintLevel.of)?.tint ?? .primary,
+              cpu: PercentFormatting.string(group.share),
+              sortKey: sortKey)
           }
         }
       }

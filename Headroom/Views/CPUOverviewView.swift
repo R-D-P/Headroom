@@ -2,8 +2,22 @@ import SwiftUI
 
 struct CPUOverviewView: View {
   let usage: HostCPUUsage
+  let isCollapsed: Bool
 
   var body: some View {
+    if isCollapsed {
+      CompactSummaryView(
+        inUse: PercentFormatting.string(usage.inUse), freeCaption: "idle",
+        free: PercentFormatting.string(usage.idle), freeTint: idleTint
+      ) {
+        CPUBarView(usage: usage)
+      }
+    } else {
+      expanded
+    }
+  }
+
+  private var expanded: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack(alignment: .bottom) {
         HeadlineNumberView(

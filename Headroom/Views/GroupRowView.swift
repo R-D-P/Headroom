@@ -3,6 +3,8 @@ import SwiftUI
 /// One app, dev server or session. Click to see its processes.
 struct GroupRowView: View {
   let group: MemoryGroup
+  let cpuShare: Double
+  let sortKey: ListSort.Key
   let isBusy: Bool
   let onAction: (GroupAction) -> Void
 
@@ -15,12 +17,16 @@ struct GroupRowView: View {
         GroupIconView(kind: group.kind)
         GroupSummaryView(
           title: group.title, details: group.details, explanation: group.explanation,
-          isOrphaned: group.isOrphaned, isExpanded: isExpanded)
-        Spacer(minLength: 8)
-        VStack(alignment: .trailing, spacing: 6) {
-          Text(ByteFormatting.string(group.footprintBytes))
-            .font(.system(size: 13, weight: .semibold).monospacedDigit())
-          GroupActionButtons(group: group, isBusy: isBusy, onAction: onAction)
+          isOrphaned: group.isOrphaned, isExpanded: isExpanded
+        ) {
+          HStack(spacing: 8) {
+            ActionSegmentsView(group: group, isBusy: isBusy, onAction: onAction)
+            MetricSegmentsView(
+              memory: ByteFormatting.string(group.footprintBytes),
+              memoryTint: FootprintLevel.of(group)?.tint ?? .primary,
+              cpu: PercentFormatting.string(cpuShare),
+              sortKey: sortKey)
+          }
         }
       }
       if isExpanded {

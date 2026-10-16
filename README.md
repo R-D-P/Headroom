@@ -18,7 +18,11 @@ be slowed down.
 
 Each row says in plain English why it uses what it uses ("Electron app: ships its own copy of
 Chrome"), and has a button: **Restart** and **Quit** for apps, **Stop** for dev servers,
-sessions and leftovers. Buttons ask once before acting (click, then click again).
+sessions and leftovers. Buttons ask once before acting (click, then click again). Each row's
+RAM figure is green, blue or red for light, typical or heavy for that kind of thing.
+
+Either list can be sorted by RAM or CPU, largest or smallest first, and the summary at the top
+folds away (the chevron in the title bar) to give the list more room.
 
 ## Build and run
 
