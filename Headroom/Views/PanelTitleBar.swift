@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// "Headroom", the RAM/CPU switch, the status badge for the tab on show, and the button that
-/// folds the summary away.
+/// The RAM/CPU/Battery switch on the left, then the status badge for the tab on show and the
+/// button that folds the summary away. Nothing on the left changes width between tabs, so the
+/// switch never moves.
 struct PanelTitleBar: View {
   @Binding var selectedTab: PanelTab
   @Binding var isSummaryCollapsed: Bool
@@ -9,17 +10,15 @@ struct PanelTitleBar: View {
 
   var body: some View {
     HStack(spacing: 12) {
-      Text("Headroom")
-        .font(.headline)
       Picker("View", selection: $selectedTab) {
-        ForEach(PanelTab.allCases) { tab in
+        ForEach(PanelTab.available) { tab in
           Text(tab.title).tag(tab)
         }
       }
       .pickerStyle(.segmented)
       .labelsHidden()
-      .frame(width: 120)
-      Spacer()
+      .frame(width: CGFloat(PanelTab.available.count) * 72)
+      Spacer(minLength: 8)
       badge
       Button {
         withAnimation(.snappy) { isSummaryCollapsed.toggle() }
@@ -45,6 +44,10 @@ struct PanelTitleBar: View {
     case .cpu:
       if let usage = monitor.cpuUsage {
         StatusBadge(title: usage.thermalState.title, tint: usage.thermalState.tint)
+      }
+    case .battery:
+      if let battery = monitor.battery {
+        StatusBadge(title: battery.badgeTitle, tint: battery.tint)
       }
     }
   }

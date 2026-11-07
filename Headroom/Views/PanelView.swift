@@ -29,7 +29,10 @@ struct PanelView: View {
         .padding(.vertical, 10)
     }
     .frame(width: 460)
-    .onAppear { monitor.panelDidAppear() }
+    .onAppear {
+      if !PanelTab.available.contains(selectedTab) { selectedTab = .memory }
+      monitor.panelDidAppear()
+    }
     .onDisappear { monitor.panelDidDisappear() }
   }
 
@@ -43,6 +46,12 @@ struct PanelView: View {
     case .cpu:
       if let usage = monitor.cpuUsage {
         CPUOverviewView(usage: usage, isCollapsed: isSummaryCollapsed)
+      } else {
+        MeasuringView()
+      }
+    case .battery:
+      if let battery = monitor.battery {
+        BatteryOverviewView(battery: battery, isCollapsed: isSummaryCollapsed)
       } else {
         MeasuringView()
       }
@@ -70,6 +79,8 @@ struct PanelView: View {
         height: listHeight(400),
         onAction: { action, group in monitor.perform(action, on: group) }
       )
+    case .battery:
+      BatteryDetailsView(battery: monitor.battery, height: listHeight(300))
     }
   }
 

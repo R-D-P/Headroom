@@ -2,7 +2,7 @@ import AppKit
 import Observation
 
 /// Owns the numbers on screen. Refreshes system memory every 5 seconds for the menu bar, and the
-/// full per-process RAM and CPU breakdown every 2 seconds while the panel is open.
+/// battery and the full per-process RAM and CPU breakdown every 2 seconds while the panel is open.
 @MainActor
 @Observable
 final class MemoryMonitor {
@@ -10,6 +10,7 @@ final class MemoryMonitor {
   private(set) var groups: [MemoryGroup] = []
   private(set) var cpuUsage: HostCPUUsage?
   private(set) var cpuGroups: [CPUGroup] = []
+  private(set) var battery: BatteryStatus?
   private(set) var lastUpdated: Date?
   private(set) var busyGroupIds: Set<String> = []
   private(set) var statusMessage: String?
@@ -35,6 +36,7 @@ final class MemoryMonitor {
   func panelDidAppear() {
     visiblePanelCount += 1
     systemMemory = SystemMemoryReader.read()
+    battery = BatteryReader.read()
     Task { await refreshGroups() }
   }
 
@@ -58,6 +60,7 @@ final class MemoryMonitor {
   private func runLoop() async {
     while !Task.isCancelled {
       systemMemory = SystemMemoryReader.read()
+      battery = BatteryReader.read()
       if isPanelVisible || groups.isEmpty {
         await refreshGroups()
       } else {

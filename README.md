@@ -16,6 +16,10 @@ macOS's own work split into named jobs (Spotlight indexing, Photos analysis, Tim
 iCloud sync, WindowServer…), plus load average, core count and whether the Mac is hot enough to
 be slowed down.
 
+A **Battery** tab (on Macs that have one) shows the charge, time left or time until full, and
+how fast power is going in or out, in watts and mA. Below that: mAh available now, at full charge
+and when new, health, cycle count, voltage, the adapter's wattage and whether Low Power Mode is on.
+
 Each row says in plain English why it uses what it uses ("Electron app: ships its own copy of
 Chrome"), and has a button: **Restart** and **Quit** for apps, **Stop** for dev servers,
 sessions and leftovers. Buttons ask once before acting (click, then click again). Each row's
