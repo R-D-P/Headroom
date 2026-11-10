@@ -26,8 +26,8 @@ struct BatteryOverviewView: View {
         BatteryBarView(battery: battery)
         HStack(spacing: 8) {
           StatTile(caption: "Status", value: battery.shortTitle, dot: battery.tint)
-          StatTile(caption: "Charge rate", value: rate)
-          StatTile(caption: "Mac drawing", value: battery.systemPower.map(BatteryFormatting.watts) ?? "–")
+          StatTile(caption: rateCaption, value: rate)
+          StatTile(caption: "Mac using", value: battery.macPower.map(BatteryFormatting.watts) ?? (battery.isSettling ? "…" : "–"))
         }
         Text(battery.advice)
           .font(.callout)
@@ -49,7 +49,12 @@ struct BatteryOverviewView: View {
     }
   }
 
+  private var rateCaption: String {
+    (battery.batteryPower ?? 0) < -0.05 ? "Drain rate" : "Charge rate"
+  }
+
   private var rate: String {
+    guard !battery.isSettling else { return "…" }
     guard let power = battery.batteryPower, abs(power) > 0.05 else { return "Idle" }
     return (power > 0 ? "+" : "−") + BatteryFormatting.watts(abs(power))
   }

@@ -4,14 +4,19 @@ import SwiftUI
 /// the electrical and adapter details.
 struct BatteryDetailsView: View {
   let battery: BatteryStatus?
+  let isChangingLowPowerMode: Bool
   let height: CGFloat
+  let onSetLowPowerMode: (Bool) -> Void
 
   var body: some View {
     ScrollView {
       if let battery {
         VStack(alignment: .leading, spacing: 18) {
           BatteryHealthView(battery: battery)
-          section("Power") {
+          section("Power flow") {
+            BatteryPowerFlowRows(battery: battery)
+          }
+          section("Details") {
             TableRowView(
               title: "Adapter", explanation: battery.adapter?.name,
               value: adapterValue(battery), dotPlacement: .beforeValue)
@@ -28,9 +33,9 @@ struct BatteryDetailsView: View {
             if let temperature = battery.temperature {
               TableRowView(title: "Temperature", value: String(format: "%.1f °C", temperature), dotPlacement: .beforeValue)
             }
-            TableRowView(
-              title: "Low Power Mode", explanation: "System Settings › Battery",
-              value: battery.isLowPowerModeOn ? "On" : "Off", dotPlacement: .beforeValue)
+            LowPowerModeRow(
+              isOn: battery.isLowPowerModeOn, isChanging: isChangingLowPowerMode,
+              onSet: onSetLowPowerMode)
           }
         }
         .padding(16)
@@ -45,7 +50,7 @@ struct BatteryDetailsView: View {
 
   private func adapterValue(_ battery: BatteryStatus) -> String {
     guard let adapter = battery.adapter else { return "Not connected" }
-    return adapter.watts.map { "\($0) W" } ?? "Connected"
+    return adapter.watts.map { "\($0) W max" } ?? "Connected"
   }
 
   private func currentExplanation(_ amperage: Int) -> String {
@@ -61,6 +66,88 @@ struct BatteryDetailsView: View {
       SectionHeader(title: title)
       rows()
     }
+  }
+}
+
+/// Laid out like a table row, with a switch where the value would be.
+struct LowPowerModeRow: View {
+  let isOn: Bool
+  let isChanging: Bool
+  let onSet: (Bool) -> Void
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Text("Low Power Mode")
+        .frame(width: 104, alignment: .leading)
+      Text(LowPowerMode.isHelperAllowed ? "Slows the Mac to last longer" : "Asks once for permission")
+        .foregroundStyle(.tertiary)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      if isChanging {
+        ProgressView().controlSize(.mini)
+      }
+      Toggle("Low Power Mode", isOn: Binding(get: { isOn }, set: { onSet($0) }))
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+        .labelsHidden()
+        .disabled(isChanging)
+    }
+    .font(.caption)
+  }
+}
+
+/// Where the watts are coming from and going to right now: adapter in, then the split between
+/// charging the battery and running the Mac; or, unplugged, what the battery is giving up.
+struct BatteryPowerFlowRows: View {
+  let battery: BatteryStatus
+
+  /// Under this the battery is as good as idle; the gauge jitters by a few milliwatts.
+  private static let idleWatts = 0.05
+
+  var body: some View {
+    if battery.isSettling {
+      TableRowView(
+        title: battery.isPluggedIn ? "From adapter" : "From battery",
+        explanation: "Measuring, up to a minute", value: "…", dotPlacement: .beforeValue)
+    } else {
+      settledRows
+    }
+  }
+
+  @ViewBuilder
+  private var settledRows: some View {
+    let batteryPower = battery.batteryPower ?? 0
+    if battery.isPluggedIn {
+      TableRowView(
+        title: "From adapter", explanation: adapterExplanation,
+        value: watts(battery.adapterPower), color: .blue, dotPlacement: .beforeValue)
+    }
+    if batteryPower > Self.idleWatts {
+      TableRowView(
+        title: "To battery", explanation: "Charging it",
+        value: watts(batteryPower), color: .green, dotPlacement: .beforeValue)
+    } else if batteryPower < -Self.idleWatts {
+      TableRowView(
+        title: "From battery",
+        explanation: battery.isPluggedIn ? "The adapter can't keep up" : "Draining",
+        value: watts(-batteryPower), color: battery.chargeTint, dotPlacement: .beforeValue)
+    } else {
+      TableRowView(
+        title: "To battery", explanation: "Not charging",
+        value: watts(0), color: MemorySegment.unused.color, dotPlacement: .beforeValue)
+    }
+    TableRowView(
+      title: "To the Mac", explanation: "Running everything",
+      value: watts(battery.macPower), color: .purple, dotPlacement: .beforeValue)
+  }
+
+  private var adapterExplanation: String {
+    guard let rating = battery.adapter?.watts else { return "What it's delivering now" }
+    return "Of the \(rating) W it can supply"
+  }
+
+  private func watts(_ value: Double?) -> String {
+    value.map(BatteryFormatting.watts) ?? "–"
   }
 }
 

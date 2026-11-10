@@ -1,6 +1,5 @@
 import SwiftUI
 
-@main
 struct HeadroomApp: App {
   @State private var monitor = MemoryMonitor()
   @State private var loginItem = LoginItem()
@@ -9,7 +8,9 @@ struct HeadroomApp: App {
     MenuBarExtra {
       PanelView(monitor: monitor, loginItem: loginItem)
     } label: {
-      MenuBarLabel(memory: monitor.systemMemory)
+      MenuBarLabel(
+        status: MenuBarStatus(memory: monitor.systemMemory, cpu: monitor.cpuUsage, battery: monitor.battery),
+        pulseOpacity: monitor.menuBarPulse.opacity)
     }
     .menuBarExtraStyle(.window)
 

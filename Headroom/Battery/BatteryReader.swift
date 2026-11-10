@@ -40,7 +40,8 @@ enum BatteryReader {
       ?? (reportsPercent ? nil : int("MaxCapacity"))
     let charge = powerSource?.charge ?? fraction(remaining, of: full) ?? 0
 
-    let isPluggedIn = battery.bool("ExternalConnected") ?? false
+    let isPluggedIn =
+      LaunchOptions.simulatedCharge == nil && battery.bool("ExternalConnected") ?? false
     let isCharging = battery.bool("IsCharging") ?? false
     let isFull = battery.bool("FullyCharged") ?? false
     let state: BatteryStatus.State =
@@ -52,11 +53,23 @@ enum BatteryReader {
       }
 
     let telemetry = battery.dictionary("PowerTelemetryData")
-    let systemPowerMilliwatts =
-      isPluggedIn ? telemetry?.int("SystemPowerIn") : telemetry?.int("SystemLoad")
+    let watts = { (key: String) -> Double? in
+      telemetry?.int(key).flatMap { $0 > 0 ? Double($0) / 1000 : nil }
+    }
+
+    // The plug state flips at once, but the gauge behind the electrical figures only refreshes
+    // about once a minute. Until it does, they still describe the moment before: charging current
+    // with no adapter, or no adapter power with one attached. Better to show nothing than that.
+    let rawAmperage = battery.int("InstantAmperage") ?? battery.int("Amperage")
+    let adapterPower = isPluggedIn ? watts("SystemPowerIn") : nil
+    let isSettling =
+      LaunchOptions.simulatedCharge == nil
+      && (isPluggedIn
+        ? telemetry != nil && adapterPower == nil
+        : (rawAmperage ?? 0) > 0 || (telemetry?.int("SystemPowerIn") ?? 0) > 0)
 
     return BatteryStatus(
-      charge: charge,
+      charge: LaunchOptions.simulatedCharge ?? charge,
       state: state,
       isPluggedIn: isPluggedIn,
       remainingCapacity: remaining,
@@ -64,13 +77,15 @@ enum BatteryReader {
       designCapacity: int("DesignCapacity"),
       cycleCount: int("CycleCount"),
       designCycleCount: int("DesignCycleCount9C"),
-      amperage: battery.int("InstantAmperage") ?? battery.int("Amperage"),
+      amperage: isSettling ? nil : rawAmperage,
       voltage: battery.int("Voltage"),
       temperature: int("Temperature").map { Double($0) / 100 },
       minutesToFull: state == .charging ? minutes(battery.int("AvgTimeToFull")) : nil,
       minutesToEmpty: state == .discharging
         ? minutes(battery.int("TimeRemaining") ?? battery.int("AvgTimeToEmpty")) : nil,
-      systemPower: systemPowerMilliwatts.flatMap { $0 > 0 ? Double($0) / 1000 : nil },
+      adapterPower: adapterPower,
+      systemLoad: isSettling ? nil : watts("SystemLoad"),
+      isSettling: isSettling,
       adapter: isPluggedIn ? adapter(from: battery.dictionary("AdapterDetails")) : nil,
       condition: powerSource?.condition,
       isLowPowerModeOn: ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -90,7 +105,8 @@ enum BatteryReader {
   private static func adapter(from details: Properties?) -> PowerAdapter {
     PowerAdapter(
       watts: details?.int("Watts"),
-      name: details?.string("Name") ?? details?.string("Description"),
+      name: (details?.string("Name") ?? details?.string("Description"))?
+        .trimmingCharacters(in: .whitespaces),
       isWireless: details?.bool("IsWireless") ?? false
     )
   }

@@ -31,8 +31,14 @@ struct BatteryStatus: Sendable, Equatable {
   /// Minutes, missing while macOS is still working it out.
   let minutesToFull: Int?
   let minutesToEmpty: Int?
-  /// What the whole Mac is drawing, wherever it comes from, in watts.
-  let systemPower: Double?
+  /// What the adapter is actually delivering right now, in watts. Usually well under its rating:
+  /// the Mac only pulls what it needs to run and to charge. Nil when unplugged.
+  let adapterPower: Double?
+  /// What the Mac itself is using, not counting what goes into the battery, in watts.
+  let systemLoad: Double?
+  /// Just plugged in or unplugged, and the power figures haven't caught up yet. They take up to
+  /// a minute, and are left out until then.
+  let isSettling: Bool
   let adapter: PowerAdapter?
   /// macOS's own verdict, e.g. "Good" or "Service Recommended".
   let condition: String?
@@ -42,6 +48,33 @@ struct BatteryStatus: Sendable, Equatable {
   var batteryPower: Double? {
     guard let amperage, let voltage else { return nil }
     return Double(amperage) * Double(voltage) / 1_000_000
+  }
+
+  /// What's running the Mac, in watts. Falls back to adapter-in minus battery-in on Macs that
+  /// don't report it directly.
+  var macPower: Double? {
+    guard !isSettling else { return nil }
+    if let systemLoad { return systemLoad }
+    guard let batteryPower else { return adapterPower }
+    let derived = (adapterPower ?? 0) - batteryPower
+    return derived > 0 ? derived : nil
+  }
+
+  /// Low enough to flag in the menu bar. Only while unplugged: once it's charging, it's handled.
+  var warning: Warning? {
+    guard !isPluggedIn else { return nil }
+    switch charge {
+    case ..<0.1: return .critical
+    case ..<0.2: return .low
+    default: return nil
+    }
+  }
+
+  enum Warning: Sendable, Equatable {
+    /// Under 20%.
+    case low
+    /// Under 10%.
+    case critical
   }
 
   /// Today's full charge as a share of the design capacity.

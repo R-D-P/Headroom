@@ -80,7 +80,12 @@ struct PanelView: View {
         onAction: { action, group in monitor.perform(action, on: group) }
       )
     case .battery:
-      BatteryDetailsView(battery: monitor.battery, height: listHeight(300))
+      BatteryDetailsView(
+        battery: monitor.battery,
+        isChangingLowPowerMode: monitor.isChangingLowPowerMode,
+        height: listHeight(300),
+        onSetLowPowerMode: { monitor.setLowPowerMode($0) }
+      )
     }
   }
 

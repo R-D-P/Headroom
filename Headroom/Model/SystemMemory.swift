@@ -11,6 +11,11 @@ struct SystemMemory: Sendable, Equatable {
   /// Activity Monitor's "Memory Used".
   var usedBytes: UInt64 { appBytes + wiredBytes + compressedBytes }
 
+  /// 0–1: how much of the Mac's memory is in use.
+  var usedFraction: Double {
+    totalBytes > 0 ? min(1, Double(usedBytes) / Double(totalBytes)) : 0
+  }
+
   /// Memory holding nothing at all.
   var unusedBytes: UInt64 {
     let taken = usedBytes + cachedBytes

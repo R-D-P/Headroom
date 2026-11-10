@@ -52,7 +52,7 @@ panel's footer turns it off). Development builds elsewhere never register themse
 
 Release builds are signed with the **Developer ID Application: RUSSELL PHILLIPS (7EDVBP8444)**
 certificate, with Hardened Runtime and a secure timestamp, so they can be notarized. The
-certificate expires on 1 February 2027; copies notarized before then keep working.
+certificate expires on 10 December 2027; copies notarized before then keep working.
 
 To share a new version, notarize the app, staple it, then do the same for a disk image:
 
@@ -73,12 +73,23 @@ spctl -a -vv -t install Headroom-1.0.dmg   # expect "source=Notarized Developer 
 password). Release builds set `CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO`, because Apple refuses to
 notarize an app carrying the debugger entitlement Xcode otherwise adds.
 
+## The helper
+
+Only an administrator can switch Low Power Mode, so the Battery tab's switch hands the job to a
+helper: Headroom's own binary, started by launchd as root (`Support/com.russellphillips.Headroom.helper.plist`,
+copied into the app at `Contents/Library/LaunchDaemons`). macOS asks you to allow it once, in
+System Settings › Login Items. It accepts requests only from a Headroom signed by the same
+Developer ID team, runs `pmset -a lowpowermode`, and quits. Builds without that signature can't
+register a helper and ask for your password each time instead.
+
 ## Launch options
 
 | Option | What it does |
 | --- | --- |
 | `--open-window` | Opens the panel as a normal window at launch |
 | `--print-groups` | Prints every row as text and quits |
+| `--battery-charge 8` | Pretends the battery is unplugged and at 8%, to preview the low-battery menu bar icon |
+| `--low-power on` / `off` | Switches Low Power Mode the way the Battery tab's switch does, prints the result, quits |
 | `--stop "<row title>"` | Runs Stop on the first row whose title starts with that text, prints the result, quits |
 
 ```sh

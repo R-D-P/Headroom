@@ -11,6 +11,28 @@ enum LaunchOptions {
     ProcessInfo.processInfo.arguments.contains("--print-groups")
   }
 
+  /// `--battery-charge 8`: pretends the battery is unplugged and at that percent, to see the
+  /// low-battery menu bar icon without running the battery down.
+  static var simulatedCharge: Double? {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let index = arguments.firstIndex(of: "--battery-charge"), index + 1 < arguments.count,
+      let percent = Double(arguments[index + 1])
+    else { return nil }
+    return min(1, max(0, percent / 100))
+  }
+
+  /// `--low-power on` or `--low-power off`: flips Low Power Mode the way the switch does, prints
+  /// the result, then quits.
+  static var lowPowerModeToSet: Bool? {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let index = arguments.firstIndex(of: "--low-power"), index + 1 < arguments.count else { return nil }
+    switch arguments[index + 1] {
+    case "on": return true
+    case "off": return false
+    default: return nil
+    }
+  }
+
   /// `--stop "<row title>"`: runs the Stop action on the first matching row, prints the result,
   /// then quits. The same code path as the Stop button, usable from a script.
   static var groupTitleToStop: String? {
