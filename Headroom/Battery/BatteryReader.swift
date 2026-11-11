@@ -5,11 +5,15 @@ import IOKit.ps
 /// Reads the internal battery from the I/O Registry (AppleSmartBattery), where macOS keeps the
 /// raw figures that System Settings rounds away. Returns nil on Macs without a battery.
 enum BatteryReader {
-  /// Checked once: a Mac doesn't grow a battery while running.
+  /// Checked once: a Mac doesn't grow a battery while running. Desktop Macs still have the
+  /// AppleSmartBattery entry, just with nothing installed, so its presence alone proves nothing.
   static let hasBattery: Bool = {
     let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
-    defer { if service != 0 { IOObjectRelease(service) } }
-    return service != 0
+    guard service != 0 else { return false }
+    defer { IOObjectRelease(service) }
+    let installed = IORegistryEntryCreateCFProperty(
+      service, "BatteryInstalled" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
+    return installed != false && PowerSourceInfo.read() != nil
   }()
 
   /// macOS uses this in place of a time it hasn't worked out yet.
