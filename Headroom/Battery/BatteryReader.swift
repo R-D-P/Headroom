@@ -19,7 +19,10 @@ enum BatteryReader {
   /// macOS uses this in place of a time it hasn't worked out yet.
   private static let unknownMinutes = 65535
 
-  static func read() -> BatteryStatus? {
+  /// `canBeSettling` is false once the plug has been in or out for a while. Past that point
+  /// figures that look like they haven't caught up are real: plugged in above a charge limit,
+  /// the Mac runs from the battery and takes nothing from the adapter.
+  static func read(canBeSettling: Bool = true) -> BatteryStatus? {
     guard hasBattery else { return nil }
     let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
     guard service != 0 else { return nil }
@@ -67,7 +70,7 @@ enum BatteryReader {
     let rawAmperage = battery.int("InstantAmperage") ?? battery.int("Amperage")
     let adapterPower = isPluggedIn ? watts("SystemPowerIn") : nil
     let isSettling =
-      LaunchOptions.simulatedCharge == nil
+      canBeSettling && LaunchOptions.simulatedCharge == nil
       && (isPluggedIn
         ? telemetry != nil && adapterPower == nil
         : (rawAmperage ?? 0) > 0 || (telemetry?.int("SystemPowerIn") ?? 0) > 0)

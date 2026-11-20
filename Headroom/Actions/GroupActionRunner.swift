@@ -1,3 +1,6 @@
+import Darwin
+
+
 /// Carries out a row's button and returns the sentence the panel shows afterwards.
 @MainActor
 enum GroupActionRunner {
@@ -11,7 +14,7 @@ enum GroupActionRunner {
 
   private static func quit(_ group: MemoryGroup) async -> String {
     guard case .app(let pid, _) = group.kind else { return "\(group.title) isn't an app." }
-    let didQuit = await AppLifecycle.quit(pid: pid)
+    let didQuit = await AppLifecycle.quit(pid: pid, startTime: startTime(of: pid, in: group))
     return didQuit ? "Quit \(group.title)." : "\(group.title) didn't quit. It may be asking you something."
   }
 
@@ -19,10 +22,15 @@ enum GroupActionRunner {
     guard case .app(let pid, .some(let bundleURL)) = group.kind else {
       return "\(group.title) can't be restarted."
     }
-    let didRestart = await AppLifecycle.restart(pid: pid, bundleURL: bundleURL)
+    let didRestart = await AppLifecycle.restart(
+      pid: pid, startTime: startTime(of: pid, in: group), bundleURL: bundleURL)
     return didRestart
       ? "Restarted \(group.title)."
       : "\(group.title) didn't quit, so it wasn't restarted. It may be asking you something."
+  }
+
+  private static func startTime(of pid: pid_t, in group: MemoryGroup) -> ProcessStartTime? {
+    group.processes.first { $0.pid == pid }?.startTime
   }
 
   private static func stop(_ group: MemoryGroup) async -> String {

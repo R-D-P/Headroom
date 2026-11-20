@@ -1,7 +1,8 @@
 import Foundation
 
 /// Reads every process the user owns. Runs off the main thread; caches the expensive,
-/// unchanging parts (arguments, paths) per process so a refresh only re-reads memory.
+/// rarely changing parts (arguments, working directory) per process so a refresh mostly
+/// re-reads memory.
 actor ProcessReader {
   private var detailsCache: [ProcessIdentity: ProcessDetails] = [:]
   private var argumentBuffer = [UInt8](repeating: 0, count: ProcessSyscalls.maximumArgumentsSize())
@@ -38,12 +39,15 @@ actor ProcessReader {
     return ProcessSnapshot(records: records, unreadableCount: unreadableCount, takenAt: Date())
   }
 
+  /// A process that calls exec keeps its pid and start time but becomes a different program
+  /// (a wrapper script turning into the server it starts), so the path is checked every time.
   private func cachedDetails(for identity: ProcessIdentity) -> ProcessDetails {
-    if let cached = detailsCache[identity] {
+    let executablePath = ProcessSyscalls.executablePath(of: identity.pid)
+    if let cached = detailsCache[identity], cached.executablePath == executablePath {
       return cached
     }
     let details = ProcessDetails(
-      executablePath: ProcessSyscalls.executablePath(of: identity.pid),
+      executablePath: executablePath,
       arguments: ProcessSyscalls.arguments(of: identity.pid, buffer: &argumentBuffer),
       workingDirectory: ProcessSyscalls.workingDirectory(of: identity.pid),
       responsiblePid: ProcessSyscalls.responsiblePid(of: identity.pid)

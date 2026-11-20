@@ -41,7 +41,10 @@ struct BatteryOverviewView: View {
   private var headline: (caption: String, value: String) {
     switch battery.state {
     case .charging:
-      ("Until full", battery.minutesToFull.map(BatteryFormatting.duration) ?? "…")
+      (
+        battery.chargeGoalPercent.map { "Until \($0)%" } ?? "Until full",
+        battery.minutesToChargeGoal.map(BatteryFormatting.duration) ?? "…"
+      )
     case .discharging:
       ("Time left", battery.minutesToEmpty.map(BatteryFormatting.duration) ?? "…")
     case .notCharging, .full:

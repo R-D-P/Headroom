@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The chip icon, plain while RAM, CPU and battery are all fine. It turns yellow when one needs
-/// a look, and red with the reading beside it when one is in trouble.
+/// The chip icon with the battery's charge beside it. The chip is plain while RAM, CPU and battery
+/// are all fine. It turns yellow when one needs a look, and red with the reading beside it when
+/// one is in trouble.
 struct MenuBarLabel: View {
   let status: MenuBarStatus
   let pulseOpacity: Double
@@ -12,6 +13,17 @@ struct MenuBarLabel: View {
   private static let symbolPointSize: CGFloat = 13 * 1.2
 
   var body: some View {
+    HStack(spacing: 4) {
+      icon
+      // Left to the menu bar to draw, so it stays the menu bar's own colour beside a red chip.
+      if let batteryPercent = status.batteryPercent {
+        Text(batteryPercent).monospacedDigit()
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var icon: some View {
     switch status.level {
     case .normal:
       Image(nsImage: Self.image(text: nil, color: nil))

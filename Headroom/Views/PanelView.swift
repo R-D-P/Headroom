@@ -83,8 +83,11 @@ struct PanelView: View {
       BatteryDetailsView(
         battery: monitor.battery,
         isChangingLowPowerMode: monitor.isChangingLowPowerMode,
+        isChangingEcoMode: monitor.isChangingEcoMode,
+        canSetEcoMode: monitor.canSetEcoMode,
         height: listHeight(300),
-        onSetLowPowerMode: { monitor.setLowPowerMode($0) }
+        onSetLowPowerMode: { monitor.setLowPowerMode($0) },
+        onSetEcoMode: { monitor.setEcoMode($0) }
       )
     }
   }

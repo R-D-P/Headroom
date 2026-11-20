@@ -5,10 +5,16 @@ actor CPUReader {
   private var previousHost: HostCPUTicks?
   private var previousProcesses: [pid_t: Double] = [:]
   private var previousTime: Date?
+  private var latest: CPUSnapshot?
   private let cores = CPUCores.read()
+
+  /// Two readings closer together than this compare too little time to mean anything: a few
+  /// milliseconds of one busy process reads as the whole Mac flat out.
+  private static let minimumInterval = 1.0
 
   func sample() -> CPUSnapshot? {
     let now = Date()
+    if let previousTime, now.timeIntervalSince(previousTime) < Self.minimumInterval { return latest }
     let host = HostCPUTicks.read()
     let processes = ProcessCPUSampler.sample()
     defer {
@@ -20,11 +26,13 @@ actor CPUReader {
 
     let capacitySeconds = now.timeIntervalSince(previousTime) * Double(cores.total)
     guard capacitySeconds > 0 else { return nil }
-    return CPUSnapshot(
+    let snapshot = CPUSnapshot(
       host: usage(from: previousHost, to: host),
       shareByPid: shares(of: processes, capacitySeconds: capacitySeconds),
       executablePathByPid: Dictionary(processes.map { ($0.pid, $0.executablePath) }) { first, _ in first }
     )
+    latest = snapshot
+    return snapshot
   }
 
   private func usage(from earlier: HostCPUTicks, to later: HostCPUTicks) -> HostCPUUsage {

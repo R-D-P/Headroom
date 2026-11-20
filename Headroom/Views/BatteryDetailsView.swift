@@ -5,8 +5,12 @@ import SwiftUI
 struct BatteryDetailsView: View {
   let battery: BatteryStatus?
   let isChangingLowPowerMode: Bool
+  let isChangingEcoMode: Bool
+  /// Whether this Mac's macOS can take a 60% limit. Worked out off the main thread.
+  let canSetEcoMode: Bool
   let height: CGFloat
   let onSetLowPowerMode: (Bool) -> Void
+  let onSetEcoMode: (Bool) -> Void
 
   var body: some View {
     ScrollView {
@@ -33,7 +37,15 @@ struct BatteryDetailsView: View {
             if let temperature = battery.temperature {
               TableRowView(title: "Temperature", value: String(format: "%.1f °C", temperature), dotPlacement: .beforeValue)
             }
-            LowPowerModeRow(
+            if canSetEcoMode {
+              SwitchRow(
+                title: "Eco Mode", explanation: "Stops charging at \(EcoMode.percent)%",
+                withoutHelper: .unavailable,
+                isOn: battery.isEcoModeOn, isChanging: isChangingEcoMode, onSet: onSetEcoMode)
+            }
+            SwitchRow(
+              title: "Low Power Mode", explanation: "Slows the Mac to last longer",
+              withoutHelper: .asksForPassword,
               isOn: battery.isLowPowerModeOn, isChanging: isChangingLowPowerMode,
               onSet: onSetLowPowerMode)
           }
@@ -70,29 +82,47 @@ struct BatteryDetailsView: View {
 }
 
 /// Laid out like a table row, with a switch where the value would be.
-struct LowPowerModeRow: View {
+struct SwitchRow: View {
+  let title: String
+  /// What it does. Until the helper is allowed, the row says what will happen instead.
+  let explanation: String
+  let withoutHelper: WithoutHelper
   let isOn: Bool
   let isChanging: Bool
   let onSet: (Bool) -> Void
 
   var body: some View {
     HStack(spacing: 8) {
-      Text("Low Power Mode")
+      Text(title)
         .frame(width: 104, alignment: .leading)
-      Text(LowPowerMode.isHelperAllowed ? "Slows the Mac to last longer" : "Asks once for permission")
+      Text(note)
         .foregroundStyle(.tertiary)
         .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
       if isChanging {
         ProgressView().controlSize(.mini)
       }
-      Toggle("Low Power Mode", isOn: Binding(get: { isOn }, set: { onSet($0) }))
+      Toggle(title, isOn: Binding(get: { isOn }, set: { onSet($0) }))
         .toggleStyle(.switch)
         .controlSize(.mini)
         .labelsHidden()
-        .disabled(isChanging)
+        .disabled(isChanging || !isUsable)
     }
     .font(.caption)
+  }
+
+  /// What a build that can't have a helper (anything but the installed app) does about it.
+  enum WithoutHelper {
+    case asksForPassword
+    case unavailable
+  }
+
+  private var isUsable: Bool { PrivilegedHelper.isInstalled || withoutHelper == .asksForPassword }
+
+  private var note: String {
+    if PrivilegedHelper.isAllowed { return explanation }
+    if PrivilegedHelper.isInstalled { return "Asks once for permission" }
+    return withoutHelper == .asksForPassword ? "Asks for your password" : "Only in the installed app"
   }
 }
 
@@ -129,7 +159,7 @@ struct BatteryPowerFlowRows: View {
     } else if batteryPower < -Self.idleWatts {
       TableRowView(
         title: "From battery",
-        explanation: battery.isPluggedIn ? "The adapter can't keep up" : "Draining",
+        explanation: fromBatteryExplanation,
         value: watts(-batteryPower), color: battery.chargeTint, dotPlacement: .beforeValue)
     } else {
       TableRowView(
@@ -139,6 +169,11 @@ struct BatteryPowerFlowRows: View {
     TableRowView(
       title: "To the Mac", explanation: "Running everything",
       value: watts(battery.macPower), color: .purple, dotPlacement: .beforeValue)
+  }
+
+  private var fromBatteryExplanation: String {
+    guard battery.isPluggedIn else { return "Draining" }
+    return battery.isDrainingToLimit ? "Down to the charge limit" : "The adapter can't keep up"
   }
 
   private var adapterExplanation: String {

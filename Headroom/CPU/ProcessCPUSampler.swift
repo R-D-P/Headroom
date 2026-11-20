@@ -3,6 +3,8 @@ import Foundation
 /// CPU time for every process on the Mac, root-owned ones included. Headroom can't read
 /// root processes itself, but `/bin/ps` is setuid root and reports them for anyone.
 enum ProcessCPUSampler {
+  private static let timeoutSeconds = 5.0
+
   static func sample() -> [ProcessCPUTime] {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/bin/ps")
@@ -14,6 +16,10 @@ enum ProcessCPUSampler {
       try process.run()
     } catch {
       return []
+    }
+    // ps answers in milliseconds. One that hangs would otherwise stall every refresh after it.
+    DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds) {
+      if process.isRunning { process.terminate() }
     }
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     process.waitUntilExit()

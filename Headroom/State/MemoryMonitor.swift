@@ -18,6 +18,17 @@ final class MemoryMonitor {
   private(set) var busyGroupIds: Set<String> = []
   private(set) var statusMessage: String?
   private(set) var isChangingLowPowerMode = false
+  private(set) var isChangingEcoMode = false
+  /// True once macOS has answered about its charge limit, so the Eco Mode switch can be shown.
+  private(set) var canSetEcoMode = false
+  /// Only needed by the Battery tab, so only refreshed while the panel is open.
+  private var chargeLimit: ChargeLimit? {
+    didSet { battery?.chargeLimit = chargeLimit?.activePercent }
+  }
+  /// The power figures lag for up to a minute after the plug goes in or out, and no longer.
+  @ObservationIgnored private var wasPluggedIn: Bool?
+  @ObservationIgnored private var plugChangedAt = Date()
+  private static let settlingSeconds = 90.0
 
   @ObservationIgnored private let processReader = ProcessReader()
   @ObservationIgnored private let cpuReader = CPUReader()
@@ -35,6 +46,9 @@ final class MemoryMonitor {
       if let isOn = LaunchOptions.lowPowerModeToSet {
         return await setLowPowerModeAndExit(isOn)
       }
+      if let isOn = LaunchOptions.ecoModeToSet {
+        return await setEcoModeAndExit(isOn)
+      }
       guard !LaunchOptions.printsGroupsAndExits else { return await printGroupsAndExit() }
       await runLoop()
     }
@@ -43,7 +57,8 @@ final class MemoryMonitor {
   func panelDidAppear() {
     visiblePanelCount += 1
     systemMemory = SystemMemoryReader.read()
-    battery = BatteryReader.read()
+    battery = readBattery()
+    Task { await refreshChargeLimit() }
     Task { await refreshGroups() }
   }
 
@@ -77,14 +92,53 @@ final class MemoryMonitor {
       case .failed: statusMessage = "Couldn't change Low Power Mode."
       }
       isChangingLowPowerMode = false
-      battery = BatteryReader.read()
+      battery = readBattery()
     }
+  }
+
+  func setEcoMode(_ isOn: Bool) {
+    guard !isChangingEcoMode else { return }
+    isChangingEcoMode = true
+    statusMessage = nil
+    Task {
+      switch await EcoMode.set(isOn) {
+      case .changed:
+        statusMessage =
+          isOn ? "Eco Mode is on. Charging stops at \(EcoMode.percent)%." : "Eco Mode is off."
+      case .needsApproval:
+        statusMessage = "Allow Headroom in Login Items, then flip the switch again."
+      case .cancelled: break
+      case .failed: statusMessage = "Couldn't change Eco Mode."
+      }
+      await refreshChargeLimit()
+      isChangingEcoMode = false
+    }
+  }
+
+  private func readBattery() -> BatteryStatus? {
+    var battery = BatteryReader.read()
+    if let isPluggedIn = battery?.isPluggedIn, isPluggedIn != wasPluggedIn {
+      wasPluggedIn = isPluggedIn
+      plugChangedAt = Date()
+    }
+    if battery?.isSettling == true, Date().timeIntervalSince(plugChangedAt) > Self.settlingSeconds {
+      battery = BatteryReader.read(canBeSettling: false)
+    }
+    battery?.chargeLimit = chargeLimit?.activePercent
+    return battery
+  }
+
+  private func refreshChargeLimit() async {
+    guard BatteryReader.hasBattery, let limit = await ChargeLimitClient.readInBackground() else { return }
+    chargeLimit = limit
+    canSetEcoMode = true
   }
 
   private func runLoop() async {
     while !Task.isCancelled {
       systemMemory = SystemMemoryReader.read()
-      battery = BatteryReader.read()
+      battery = readBattery()
+      if isPanelVisible { await refreshChargeLimit() }
       if isPanelVisible || groups.isEmpty {
         await refreshGroups()
       } else {
@@ -108,9 +162,21 @@ final class MemoryMonitor {
     exit(outcome == .changed ? 0 : 1)
   }
 
+  private func setEcoModeAndExit(_ isOn: Bool) async {
+    let outcome = await EcoMode.set(isOn)
+    let limit = await ChargeLimitClient.readInBackground()
+    print("Eco Mode \(isOn ? "on" : "off"): \(outcome), charge limit now \(limit.map { "\($0.percent)%" } ?? "unknown")")
+    exit(outcome == .changed ? 0 : 1)
+  }
+
   private func stopGroupAndExit(titled title: String) async {
+    // An empty title would match every row, the largest first.
+    guard !title.isEmpty else {
+      print("--stop needs a row title.")
+      exit(1)
+    }
     await refreshGroups()
-    guard let group = groups.first(where: { $0.title.hasPrefix(title) }), group.actions.contains(.stop) else {
+    guard let group = groups.first(where: { $0.title.hasPrefix(title) && $0.actions.contains(.stop) }) else {
       print("No stoppable row titled \"\(title)\".")
       exit(1)
     }

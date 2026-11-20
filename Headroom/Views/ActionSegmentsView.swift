@@ -34,10 +34,12 @@ private struct ConfirmingSegment: View {
   let action: () -> Void
 
   @State private var isArmed = false
+  @State private var disarming: Task<Void, Never>?
 
   var body: some View {
     Button {
       guard isArmed else { return arm() }
+      disarming?.cancel()
       isArmed = false
       action()
     } label: {
@@ -54,8 +56,11 @@ private struct ConfirmingSegment: View {
 
   private func arm() {
     isArmed = true
-    Task {
+    // An earlier countdown still running would disarm this one early.
+    disarming?.cancel()
+    disarming = Task {
       try? await Task.sleep(for: .seconds(3))
+      guard !Task.isCancelled else { return }
       isArmed = false
     }
   }

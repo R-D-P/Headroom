@@ -1,14 +1,19 @@
 import Foundation
 
-/// Headroom's own binary, started by launchd as root when the app asks for Low Power Mode to be
-/// switched, which macOS only lets an administrator do. It does that one thing and quits.
+/// Headroom's own binary, started by launchd as root when the app asks for something macOS only
+/// lets an administrator do: switching Low Power Mode, or setting where charging stops. It does
+/// what it was asked and quits once it has been idle for a few seconds.
 final class HelperDaemon: NSObject, NSXPCListenerDelegate, HelperProtocol {
+  /// launchd marks the helper with an environment variable. Root is checked too, so the variable
+  /// turning up in someone's own environment doesn't stop the app from opening.
   static var isHelperProcess: Bool {
-    ProcessInfo.processInfo.environment[HelperConstants.environmentKey] == "1"
+    ProcessInfo.processInfo.environment[HelperConstants.environmentKey] == "1" && geteuid() == 0
   }
 
   /// Long enough for the reply to reach the app; launchd starts a fresh helper next time.
   private static let lingerSeconds = 5.0
+
+  private let idleExit = IdleExit()
 
   static func run() -> Never {
     let daemon = HelperDaemon()
@@ -16,7 +21,7 @@ final class HelperDaemon: NSObject, NSXPCListenerDelegate, HelperProtocol {
     listener.delegate = daemon
     listener.resume()
     // Started but never asked anything: don't sit around as root.
-    quitSoon(after: 30)
+    daemon.idleExit.exit(afterIdleFor: 30)
     withExtendedLifetime((daemon, listener)) { dispatchMain() }
   }
 
@@ -29,6 +34,8 @@ final class HelperDaemon: NSObject, NSXPCListenerDelegate, HelperProtocol {
   }
 
   func setLowPowerMode(_ isOn: Bool, reply: @escaping @Sendable (Bool) -> Void) {
+    idleExit.begin()
+    defer { idleExit.end(thenExitAfterIdleFor: Self.lingerSeconds) }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
     process.arguments = ["-a", "lowpowermode", isOn ? "1" : "0"]
@@ -40,10 +47,40 @@ final class HelperDaemon: NSObject, NSXPCListenerDelegate, HelperProtocol {
       didSucceed = process.terminationStatus == 0
     }
     reply(didSucceed)
-    Self.quitSoon(after: Self.lingerSeconds)
   }
 
-  private static func quitSoon(after seconds: Double) {
-    DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { exit(0) }
+  func setChargeLimit(_ percent: Int, reply: @escaping @Sendable (Bool) -> Void) {
+    idleExit.begin()
+    defer { idleExit.end(thenExitAfterIdleFor: Self.lingerSeconds) }
+    reply(ChargeLimitClient.apply(percent))
+  }
+}
+
+/// Quits the helper once nothing has been asked of it for a while. A request that arrives or is
+/// still running when a timer fires cancels that timer, so no request is cut off part-way.
+private final class IdleExit: @unchecked Sendable {
+  private let lock = NSLock()
+  private var activeRequests = 0
+  /// Goes up with every request, so a timer can tell whether anything happened since it was set.
+  private var requestCount = 0
+
+  func begin() {
+    lock.withLock {
+      activeRequests += 1
+      requestCount += 1
+    }
+  }
+
+  func end(thenExitAfterIdleFor seconds: Double) {
+    lock.withLock { activeRequests -= 1 }
+    exit(afterIdleFor: seconds)
+  }
+
+  func exit(afterIdleFor seconds: Double) {
+    let countWhenSet = lock.withLock { requestCount }
+    DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { [self] in
+      let isIdle = lock.withLock { activeRequests == 0 && requestCount == countWhenSet }
+      if isIdle { Darwin.exit(0) }
+    }
   }
 }

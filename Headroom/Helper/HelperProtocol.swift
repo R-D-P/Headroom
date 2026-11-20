@@ -1,8 +1,10 @@
 import Foundation
 
-/// The one thing the app may ask the helper to do.
+/// Everything the app may ask the helper to do.
 @objc protocol HelperProtocol {
   func setLowPowerMode(_ isOn: Bool, reply: @escaping @Sendable (Bool) -> Void)
+  /// Where macOS stops charging, in percent. 100 lifts the limit.
+  func setChargeLimit(_ percent: Int, reply: @escaping @Sendable (Bool) -> Void)
 }
 
 enum HelperConstants {

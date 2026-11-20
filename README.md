@@ -19,10 +19,17 @@ be slowed down.
 A **Battery** tab (on Macs that have one) shows the charge, time left or time until full, and
 how fast power is going in or out, in watts and mA. Below that: mAh available now, at full charge
 and when new, health, cycle count, voltage, the adapter's wattage and whether Low Power Mode is on.
+The menu bar icon shows the charge beside it.
+
+**Eco Mode**, a switch on the Battery tab, stops charging at 60% instead of full, which slows
+battery wear on a Mac that mostly stays plugged in. Turn it off to charge past 60% again. macOS
+enforces the limit itself, so it holds while Headroom is closed and while the Mac sleeps. Two
+things to expect: plugged in above 60%, macOS runs the Mac from the battery until it's back down,
+and now and then it charges to full on its own to keep its charge reading accurate.
 
 Each row says in plain English why it uses what it uses ("Electron app: ships its own copy of
-Chrome"), and has a button: **Restart** and **Quit** for apps, **Stop** for dev servers,
-sessions and leftovers. Buttons ask once before acting (click, then click again). Each row's
+Chrome"), and has a button: **Restart** and **Quit** for apps, **Stop** for everything else
+that isn't macOS: dev servers, sessions, leftovers and other background processes. Buttons ask once before acting (click, then click again). Each row's
 RAM figure is green, blue or red for light, typical or heavy for that kind of thing.
 
 Either list can be sorted by RAM or CPU, largest or smallest first, and the summary at the top
@@ -48,7 +55,8 @@ ditto build/Release/Headroom.app /Applications/Headroom.app
 ```
 
 The copy in `/Applications` turns on **Open at login** the first time it runs (a checkbox in the
-panel's footer turns it off). Development builds elsewhere never register themselves.
+panel's footer turns it off). Development builds elsewhere never register themselves, and never
+get the helper.
 
 Release builds are signed with the **Developer ID Application: RUSSELL PHILLIPS (7EDVBP8444)**
 certificate, with Hardened Runtime and a secure timestamp, so they can be notarized. The
@@ -75,12 +83,17 @@ notarize an app carrying the debugger entitlement Xcode otherwise adds.
 
 ## The helper
 
-Only an administrator can switch Low Power Mode, so the Battery tab's switch hands the job to a
-helper: Headroom's own binary, started by launchd as root (`Support/com.russellphillips.Headroom.helper.plist`,
+Only an administrator can switch Low Power Mode or set a charge limit under 80%, so the Battery
+tab's switches hand the job to a helper: Headroom's own binary, started by launchd as root (`Support/com.russellphillips.Headroom.helper.plist`,
 copied into the app at `Contents/Library/LaunchDaemons`). macOS asks you to allow it once, in
 System Settings › Login Items. It accepts requests only from a Headroom signed by the same
-Developer ID team, runs `pmset -a lowpowermode`, and quits. Builds without that signature can't
-register a helper and ask for your password each time instead.
+Developer ID team, runs `pmset -a lowpowermode` or hands the charge limit to macOS's charging
+agent, and quits. For the charge limit it accepts only 60% and the values System Settings
+offers (80–100%).
+
+Only the copy in `/Applications` registers the helper. Other builds ask for your password each
+time for Low Power Mode and can't switch Eco Mode. The installed app also falls back to the
+password prompt for Low Power Mode if its helper can't be reached.
 
 ## Launch options
 
@@ -90,6 +103,7 @@ register a helper and ask for your password each time instead.
 | `--print-groups` | Prints every row as text and quits |
 | `--battery-charge 8` | Pretends the battery is unplugged and at 8%, to preview the low-battery menu bar icon |
 | `--low-power on` / `off` | Switches Low Power Mode the way the Battery tab's switch does, prints the result, quits |
+| `--eco on` / `off` | The same for Eco Mode |
 | `--stop "<row title>"` | Runs Stop on the first row whose title starts with that text, prints the result, quits |
 
 ```sh

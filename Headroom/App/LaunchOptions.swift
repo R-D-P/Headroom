@@ -23,9 +23,14 @@ enum LaunchOptions {
 
   /// `--low-power on` or `--low-power off`: flips Low Power Mode the way the switch does, prints
   /// the result, then quits.
-  static var lowPowerModeToSet: Bool? {
+  static var lowPowerModeToSet: Bool? { onOrOff(after: "--low-power") }
+
+  /// `--eco on` or `--eco off`: the same for Eco Mode.
+  static var ecoModeToSet: Bool? { onOrOff(after: "--eco") }
+
+  private static func onOrOff(after flag: String) -> Bool? {
     let arguments = ProcessInfo.processInfo.arguments
-    guard let index = arguments.firstIndex(of: "--low-power"), index + 1 < arguments.count else { return nil }
+    guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
     switch arguments[index + 1] {
     case "on": return true
     case "off": return false

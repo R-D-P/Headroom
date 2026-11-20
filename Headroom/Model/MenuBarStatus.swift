@@ -11,6 +11,10 @@ struct MenuBarStatus: Equatable {
   let level: Level
   /// The readings in trouble, spelled out beside the icon so it says what's wrong: "CPU 94%".
   let criticalReadings: [String]
+  /// Always beside the icon on a Mac with a battery: "45%", or "Battery 45%" when it follows
+  /// other readings and would otherwise be a bare number. Nil once the battery itself is in
+  /// trouble, when it's already among the critical readings.
+  let batteryPercent: String?
   /// Only a nearly flat battery pulses. A busy CPU is routine and would be a nuisance.
   let pulses: Bool
 
@@ -37,6 +41,9 @@ struct MenuBarStatus: Equatable {
 
     level = max(memoryLevel, cpuLevel, batteryLevel)
     criticalReadings = readings
+    batteryPercent =
+      batteryLevel == .critical
+      ? nil : battery.map { (readings.isEmpty ? "" : "Battery ") + Self.percent($0.charge) }
     pulses = batteryLevel == .critical
   }
 
