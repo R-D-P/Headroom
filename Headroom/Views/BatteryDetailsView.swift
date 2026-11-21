@@ -8,9 +8,12 @@ struct BatteryDetailsView: View {
   let isChangingEcoMode: Bool
   /// Whether this Mac's macOS can take a 60% limit. Worked out off the main thread.
   let canSetEcoMode: Bool
+  /// The limit is lifted for one full charge, after which Eco Mode comes back.
+  let isChargingToFullOnce: Bool
   let height: CGFloat
   let onSetLowPowerMode: (Bool) -> Void
   let onSetEcoMode: (Bool) -> Void
+  let onSetFullChargeOnce: (Bool) -> Void
 
   var body: some View {
     ScrollView {
@@ -42,6 +45,12 @@ struct BatteryDetailsView: View {
                 title: "Eco Mode", explanation: "Stops charging at \(EcoMode.percent)%",
                 withoutHelper: .unavailable,
                 isOn: battery.isEcoModeOn, isChanging: isChangingEcoMode, onSet: onSetEcoMode)
+              if battery.isEcoModeOn || isChargingToFullOnce {
+                SwitchRow(
+                  title: "Charge to full", explanation: "Once, then Eco Mode returns",
+                  withoutHelper: .unavailable,
+                  isOn: isChargingToFullOnce, isChanging: isChangingEcoMode, onSet: onSetFullChargeOnce)
+              }
             }
             SwitchRow(
               title: "Low Power Mode", explanation: "Slows the Mac to last longer",
@@ -149,8 +158,10 @@ struct BatteryPowerFlowRows: View {
     let batteryPower = battery.batteryPower ?? 0
     if battery.isPluggedIn {
       TableRowView(
-        title: "From adapter", explanation: adapterExplanation,
-        value: watts(battery.adapterPower), color: .blue, dotPlacement: .beforeValue)
+        title: "From adapter",
+        explanation: battery.isHeldOffAdapter ? "Paused above the limit" : adapterExplanation,
+        value: battery.isHeldOffAdapter ? BatteryFormatting.watts(0) : watts(battery.adapterPower),
+        color: .blue, dotPlacement: .beforeValue)
     }
     if batteryPower > Self.idleWatts {
       TableRowView(

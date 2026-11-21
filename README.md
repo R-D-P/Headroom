@@ -22,10 +22,12 @@ and when new, health, cycle count, voltage, the adapter's wattage and whether Lo
 The menu bar icon shows the charge beside it.
 
 **Eco Mode**, a switch on the Battery tab, stops charging at 60% instead of full, which slows
-battery wear on a Mac that mostly stays plugged in. Turn it off to charge past 60% again. macOS
-enforces the limit itself, so it holds while Headroom is closed and while the Mac sleeps. Two
-things to expect: plugged in above 60%, macOS runs the Mac from the battery until it's back down,
-and now and then it charges to full on its own to keep its charge reading accurate.
+battery wear on a Mac that mostly stays plugged in. Turn it off to charge past 60% again, or
+use **Charge to full** beneath it, which lifts the limit for one charge and turns Eco Mode back
+on by itself at 100%. macOS enforces the limit itself, so it holds while Headroom is closed and
+while the Mac sleeps. Two things to expect: plugged in above 60%, macOS runs the Mac from the
+battery until it's back down, and now and then it charges to full on its own to keep its charge
+reading accurate.
 
 Each row says in plain English why it uses what it uses ("Electron app: ships its own copy of
 Chrome"), and has a button: **Restart** and **Quit** for apps, **Stop** for everything else
@@ -104,6 +106,7 @@ password prompt for Low Power Mode if its helper can't be reached.
 | `--battery-charge 8` | Pretends the battery is unplugged and at 8%, to preview the low-battery menu bar icon |
 | `--low-power on` / `off` | Switches Low Power Mode the way the Battery tab's switch does, prints the result, quits |
 | `--eco on` / `off` | The same for Eco Mode |
+| `--charge-to-full on` / `off` | The same for Charge to full |
 | `--stop "<row title>"` | Runs Stop on the first row whose title starts with that text, prints the result, quits |
 
 ```sh

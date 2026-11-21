@@ -16,6 +16,11 @@ enum BatteryReader {
     return installed != false && PowerSourceInfo.read() != nil
   }()
 
+  /// Set in the charger's NotChargingReason while a charge limit is what's stopping it. Seen on
+  /// an M5 under macOS 27.2: 0x1000000 holding at the limit, 0x1400001 running down to it, and
+  /// 0x80 when really unplugged.
+  private static let chargeLimitReason = 0x100_0000
+
   /// macOS uses this in place of a time it hasn't worked out yet.
   private static let unknownMinutes = 65535
 
@@ -47,12 +52,20 @@ enum BatteryReader {
       ?? (reportsPercent ? nil : int("MaxCapacity"))
     let charge = powerSource?.charge ?? fraction(remaining, of: full) ?? 0
 
-    let isPluggedIn =
+    let isOnAdapter =
       LaunchOptions.simulatedCharge == nil && battery.bool("ExternalConnected") ?? false
+    // Plugged in above a charge limit, macOS cuts the adapter off and runs from the battery
+    // until the charge is back down. Everything then reads as unplugged except the charger's
+    // reason for not charging, which still carries the charge-limit bit.
+    let notChargingReason = battery.dictionary("ChargerData")?.int("NotChargingReason") ?? 0
+    let isHeldOffAdapter =
+      LaunchOptions.simulatedCharge == nil && !isOnAdapter
+      && notChargingReason & chargeLimitReason != 0
+    let isPluggedIn = isOnAdapter || isHeldOffAdapter
     let isCharging = battery.bool("IsCharging") ?? false
     let isFull = battery.bool("FullyCharged") ?? false
     let state: BatteryStatus.State =
-      switch (isPluggedIn, isCharging, isFull) {
+      switch (isPluggedIn, isCharging && !isHeldOffAdapter, isFull && !isHeldOffAdapter) {
       case (false, _, _): .discharging
       case (true, true, _): .charging
       case (true, false, true): .full
@@ -70,7 +83,7 @@ enum BatteryReader {
     let rawAmperage = battery.int("InstantAmperage") ?? battery.int("Amperage")
     let adapterPower = isPluggedIn ? watts("SystemPowerIn") : nil
     let isSettling =
-      canBeSettling && LaunchOptions.simulatedCharge == nil
+      canBeSettling && !isHeldOffAdapter && LaunchOptions.simulatedCharge == nil
       && (isPluggedIn
         ? telemetry != nil && adapterPower == nil
         : (rawAmperage ?? 0) > 0 || (telemetry?.int("SystemPowerIn") ?? 0) > 0)
@@ -93,6 +106,7 @@ enum BatteryReader {
       adapterPower: adapterPower,
       systemLoad: isSettling ? nil : watts("SystemLoad"),
       isSettling: isSettling,
+      isHeldOffAdapter: isHeldOffAdapter,
       adapter: isPluggedIn ? adapter(from: battery.dictionary("AdapterDetails")) : nil,
       condition: powerSource?.condition,
       isLowPowerModeOn: ProcessInfo.processInfo.isLowPowerModeEnabled

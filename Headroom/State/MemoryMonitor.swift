@@ -19,6 +19,11 @@ final class MemoryMonitor {
   private(set) var statusMessage: String?
   private(set) var isChangingLowPowerMode = false
   private(set) var isChangingEcoMode = false
+  /// The limit is lifted for one full charge, after which Eco Mode comes back.
+  private(set) var isChargingToFullOnce = EcoMode.returnsAfterFullCharge {
+    didSet { battery?.ecoModeReturnsWhenFull = isChargingToFullOnce }
+  }
+  @ObservationIgnored private var lastResumeAttempt = Date.distantPast
   /// True once macOS has answered about its charge limit, so the Eco Mode switch can be shown.
   private(set) var canSetEcoMode = false
   /// Only needed by the Battery tab, so only refreshed while the panel is open.
@@ -48,6 +53,9 @@ final class MemoryMonitor {
       }
       if let isOn = LaunchOptions.ecoModeToSet {
         return await setEcoModeAndExit(isOn)
+      }
+      if let isOn = LaunchOptions.fullChargeOnceToSet {
+        return await setFullChargeOnceAndExit(isOn)
       }
       guard !LaunchOptions.printsGroupsAndExits else { return await printGroupsAndExit() }
       await runLoop()
@@ -110,10 +118,52 @@ final class MemoryMonitor {
       case .cancelled: break
       case .failed: statusMessage = "Couldn't change Eco Mode."
       }
+      isChargingToFullOnce = EcoMode.returnsAfterFullCharge
       await refreshChargeLimit()
       isChangingEcoMode = false
     }
   }
+
+  /// On: charge to full this once. Off: call it off and put the limit straight back.
+  func setFullChargeOnce(_ isOn: Bool) {
+    guard !isChangingEcoMode else { return }
+    isChangingEcoMode = true
+    statusMessage = nil
+    Task {
+      switch await (isOn ? EcoMode.chargeToFullOnce() : EcoMode.resume()) {
+      case .changed:
+        statusMessage =
+          isOn
+          ? "Charging to full this once. Eco Mode comes back at 100%."
+          : "Eco Mode is back on. Charging stops at \(EcoMode.percent)%."
+      case .needsApproval:
+        statusMessage = "Allow Headroom in Login Items, then flip the switch again."
+      case .cancelled: break
+      case .failed: statusMessage = "Couldn't change the charge limit."
+      }
+      isChargingToFullOnce = EcoMode.returnsAfterFullCharge
+      await refreshChargeLimit()
+      isChangingEcoMode = false
+    }
+  }
+
+  /// The other half of "Charge to full": once the battery is full, the limit goes back on.
+  private func resumeEcoModeIfFullyCharged() async {
+    guard isChargingToFullOnce, !isChangingEcoMode, let battery, battery.charge >= 0.995,
+      Date().timeIntervalSince(lastResumeAttempt) > Self.resumeRetrySeconds
+    else { return }
+    lastResumeAttempt = Date()
+    isChangingEcoMode = true
+    if case .changed = await EcoMode.resume() {
+      statusMessage = "Fully charged. Eco Mode is back on."
+    }
+    isChargingToFullOnce = EcoMode.returnsAfterFullCharge
+    await refreshChargeLimit()
+    isChangingEcoMode = false
+  }
+
+  /// How long to leave it before asking the helper again when putting the limit back fails.
+  private static let resumeRetrySeconds = 60.0
 
   private func readBattery() -> BatteryStatus? {
     var battery = BatteryReader.read()
@@ -125,6 +175,7 @@ final class MemoryMonitor {
       battery = BatteryReader.read(canBeSettling: false)
     }
     battery?.chargeLimit = chargeLimit?.activePercent
+    battery?.ecoModeReturnsWhenFull = isChargingToFullOnce
     return battery
   }
 
@@ -138,6 +189,7 @@ final class MemoryMonitor {
     while !Task.isCancelled {
       systemMemory = SystemMemoryReader.read()
       battery = readBattery()
+      await resumeEcoModeIfFullyCharged()
       if isPanelVisible { await refreshChargeLimit() }
       if isPanelVisible || groups.isEmpty {
         await refreshGroups()
@@ -166,6 +218,13 @@ final class MemoryMonitor {
     let outcome = await EcoMode.set(isOn)
     let limit = await ChargeLimitClient.readInBackground()
     print("Eco Mode \(isOn ? "on" : "off"): \(outcome), charge limit now \(limit.map { "\($0.percent)%" } ?? "unknown")")
+    exit(outcome == .changed ? 0 : 1)
+  }
+
+  private func setFullChargeOnceAndExit(_ isOn: Bool) async {
+    let outcome = await (isOn ? EcoMode.chargeToFullOnce() : EcoMode.resume())
+    let limit = await ChargeLimitClient.readInBackground()
+    print("Charge to full \(isOn ? "on" : "off"): \(outcome), charge limit now \(limit.map { "\($0.percent)%" } ?? "unknown")")
     exit(outcome == .changed ? 0 : 1)
   }
 

@@ -39,12 +39,16 @@ struct BatteryStatus: Sendable, Equatable {
   /// Just plugged in or unplugged, and the power figures haven't caught up yet. They take up to
   /// a minute, and are left out until then.
   let isSettling: Bool
+  /// The cable is in, but macOS has cut the adapter off to run the charge down to a limit.
+  let isHeldOffAdapter: Bool
   let adapter: PowerAdapter?
   /// macOS's own verdict, e.g. "Good" or "Service Recommended".
   let condition: String?
   let isLowPowerModeOn: Bool
   /// Where macOS stops charging, in percent. Nil when there's no limit, or it isn't known.
   var chargeLimit: Int?
+  /// The limit is lifted for one full charge, after which Eco Mode comes back.
+  var ecoModeReturnsWhenFull = false
 
   var isEcoModeOn: Bool { chargeLimit == EcoMode.percent }
 
@@ -60,7 +64,7 @@ struct BatteryStatus: Sendable, Equatable {
   }
 
   /// Above the limit and seen to be running from the battery to get back down to it.
-  var isDrainingToLimit: Bool { isAboveLimit && (amperage ?? 0) < 0 }
+  var isDrainingToLimit: Bool { isHeldOffAdapter || (isAboveLimit && (amperage ?? 0) < 0) }
 
   /// The limit charging will stop at, while it's charging and still under it.
   var chargeGoalPercent: Int? {
@@ -122,7 +126,7 @@ struct BatteryStatus: Sendable, Equatable {
     switch state {
     case .charging: "Charging"
     case .discharging: "On battery"
-    case .notCharging: "Not charging"
+    case .notCharging: isHeldOffAdapter ? "Draining" : "Not charging"
     case .full: "Full"
     }
   }
@@ -132,7 +136,7 @@ struct BatteryStatus: Sendable, Equatable {
     switch state {
     case .charging: "Charging"
     case .discharging: "On battery"
-    case .notCharging, .full: "On adapter"
+    case .notCharging, .full: isHeldOffAdapter ? "Draining" : "On adapter"
     }
   }
 
@@ -165,12 +169,20 @@ struct BatteryStatus: Sendable, Equatable {
           ? "Charging to \(goal)%, where Eco Mode stops it."
           : "Charging to the \(goal)% limit."
       }
+      if ecoModeReturnsWhenFull {
+        return "Charging to full this once. Eco Mode comes back at 100%."
+      }
       if let chargeLimit {
         return "Charging past the \(chargeLimit)% limit. macOS does this now and then to keep its reading accurate."
       }
       return "Charging normally."
     case .full: return "Full. Running from the adapter, so the battery isn't being used."
     case .notCharging:
+      if isHeldOffAdapter {
+        let limit = chargeLimit.map { "the \($0)% limit" } ?? "the charge limit"
+        return "Above \(limit), so macOS runs the Mac from the battery until it's back down. "
+          + "The adapter takes over again there."
+      }
       if let chargeLimit, let pointsOverLimit {
         if isAboveLimit {
           return isDrainingToLimit

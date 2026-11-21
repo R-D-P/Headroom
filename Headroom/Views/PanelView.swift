@@ -85,9 +85,11 @@ struct PanelView: View {
         isChangingLowPowerMode: monitor.isChangingLowPowerMode,
         isChangingEcoMode: monitor.isChangingEcoMode,
         canSetEcoMode: monitor.canSetEcoMode,
+        isChargingToFullOnce: monitor.isChargingToFullOnce,
         height: listHeight(300),
         onSetLowPowerMode: { monitor.setLowPowerMode($0) },
-        onSetEcoMode: { monitor.setEcoMode($0) }
+        onSetEcoMode: { monitor.setEcoMode($0) },
+        onSetFullChargeOnce: { monitor.setFullChargeOnce($0) }
       )
     }
   }

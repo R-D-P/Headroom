@@ -28,6 +28,9 @@ enum LaunchOptions {
   /// `--eco on` or `--eco off`: the same for Eco Mode.
   static var ecoModeToSet: Bool? { onOrOff(after: "--eco") }
 
+  /// `--charge-to-full on` or `--charge-to-full off`: the same for the Charge to full switch.
+  static var fullChargeOnceToSet: Bool? { onOrOff(after: "--charge-to-full") }
+
   private static func onOrOff(after flag: String) -> Bool? {
     let arguments = ProcessInfo.processInfo.arguments
     guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
