@@ -37,7 +37,7 @@ enum BatteryReader {
     guard IORegistryEntryCreateCFProperties(service, &unmanaged, kCFAllocatorDefault, 0) == KERN_SUCCESS,
       let properties = unmanaged?.takeRetainedValue() as? [String: Any]
     else { return nil }
-    let battery = Properties(properties)
+    let battery = RegistryProperties(properties)
     // Newer macOS versions keep some figures only in the nested BatteryData dictionary.
     let batteryData = battery.dictionary("BatteryData")
     let int = { (key: String) in battery.int(key) ?? batteryData?.int(key) }
@@ -107,6 +107,7 @@ enum BatteryReader {
       systemLoad: isSettling ? nil : watts("SystemLoad"),
       isSettling: isSettling,
       isHeldOffAdapter: isHeldOffAdapter,
+      accessories: AccessoryReader.read(powerOut: battery.dictionaries("PowerOutDetails")),
       adapter: isPluggedIn ? adapter(from: battery.dictionary("AdapterDetails")) : nil,
       condition: powerSource?.condition,
       isLowPowerModeOn: ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -123,7 +124,7 @@ enum BatteryReader {
     return min(1, Double(part) / Double(whole))
   }
 
-  private static func adapter(from details: Properties?) -> PowerAdapter {
+  private static func adapter(from details: RegistryProperties?) -> PowerAdapter {
     PowerAdapter(
       watts: details?.int("Watts"),
       name: (details?.string("Name") ?? details?.string("Description"))?
@@ -161,7 +162,7 @@ private struct PowerSourceInfo {
 
 /// Typed lookups into an I/O Registry dictionary. Signed values such as Amperage are stored as
 /// unsigned 64-bit numbers, so they're read back through their bit pattern.
-private struct Properties {
+struct RegistryProperties {
   let values: [String: Any]
 
   init(_ values: [String: Any]) { self.values = values }
@@ -175,7 +176,11 @@ private struct Properties {
 
   func string(_ key: String) -> String? { values[key] as? String }
 
-  func dictionary(_ key: String) -> Properties? {
-    (values[key] as? [String: Any]).map(Properties.init)
+  func dictionary(_ key: String) -> RegistryProperties? {
+    (values[key] as? [String: Any]).map(RegistryProperties.init)
+  }
+
+  func dictionaries(_ key: String) -> [RegistryProperties] {
+    (values[key] as? [[String: Any]] ?? []).map(RegistryProperties.init)
   }
 }

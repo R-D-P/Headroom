@@ -29,6 +29,7 @@ struct TableRowView: View {
       }
       Text(title)
         .fontWeight(isTotal ? .semibold : .regular)
+        .lineLimit(1)
         .frame(width: Self.titleColumnWidth, alignment: .leading)
       Text(explanation ?? "")
         .foregroundStyle(.tertiary)

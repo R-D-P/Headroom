@@ -34,13 +34,16 @@ struct BatteryStatus: Sendable, Equatable {
   /// What the adapter is actually delivering right now, in watts. Usually well under its rating:
   /// the Mac only pulls what it needs to run and to charge. Nil when unplugged.
   let adapterPower: Double?
-  /// What the Mac itself is using, not counting what goes into the battery, in watts.
+  /// What the Mac and anything charging from its ports are using, not counting what goes into
+  /// the battery, in watts.
   let systemLoad: Double?
   /// Just plugged in or unplugged, and the power figures haven't caught up yet. They take up to
   /// a minute, and are left out until then.
   let isSettling: Bool
   /// The cable is in, but macOS has cut the adapter off to run the charge down to a limit.
   let isHeldOffAdapter: Bool
+  /// What the Mac is charging or powering through its ports.
+  let accessories: [PoweredAccessory]
   let adapter: PowerAdapter?
   /// macOS's own verdict, e.g. "Good" or "Service Recommended".
   let condition: String?
@@ -88,13 +91,17 @@ struct BatteryStatus: Sendable, Equatable {
     return Double(amperage) * Double(voltage) / 1_000_000
   }
 
-  /// What's running the Mac, in watts. Falls back to adapter-in minus battery-in on Macs that
-  /// don't report it directly.
+  /// What's going out through the ports to accessories, in watts.
+  var accessoryPower: Double { accessories.reduce(0) { $0 + $1.watts } }
+
+  /// What the Mac itself is using, in watts. macOS counts what its ports hand to accessories as
+  /// part of the Mac's load, so that's taken back out. Falls back to adapter-in minus battery-in
+  /// on Macs that don't report the load directly.
   var macPower: Double? {
     guard !isSettling else { return nil }
-    if let systemLoad { return systemLoad }
-    guard let batteryPower else { return adapterPower }
-    let derived = (adapterPower ?? 0) - batteryPower
+    if let systemLoad { return max(0, systemLoad - accessoryPower) }
+    guard let batteryPower else { return adapterPower.map { max(0, $0 - accessoryPower) } }
+    let derived = (adapterPower ?? 0) - batteryPower - accessoryPower
     return derived > 0 ? derived : nil
   }
 

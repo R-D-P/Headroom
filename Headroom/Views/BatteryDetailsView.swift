@@ -23,6 +23,17 @@ struct BatteryDetailsView: View {
           section("Power flow") {
             BatteryPowerFlowRows(battery: battery)
           }
+          if !battery.accessories.isEmpty {
+            section("Charging from this Mac") {
+              ForEach(battery.accessories) { accessory in
+                TableRowView(
+                  title: accessory.title,
+                  explanation: accessory.limitWatts.map { "Of the \(BatteryFormatting.watts($0)) it may draw" }
+                    ?? "Over USB-C",
+                  value: BatteryFormatting.watts(accessory.watts), color: .orange, dotPlacement: .beforeValue)
+              }
+            }
+          }
           section("Details") {
             TableRowView(
               title: "Adapter", explanation: battery.adapter?.name,
@@ -177,8 +188,14 @@ struct BatteryPowerFlowRows: View {
         title: "To battery", explanation: "Not charging",
         value: watts(0), color: MemorySegment.unused.color, dotPlacement: .beforeValue)
     }
+    if battery.accessoryPower > Self.idleWatts {
+      TableRowView(
+        title: "To accessories",
+        explanation: battery.accessories.count == 1 ? "Charging 1 device" : "Charging \(battery.accessories.count) devices",
+        value: watts(battery.accessoryPower), color: .orange, dotPlacement: .beforeValue)
+    }
     TableRowView(
-      title: "To the Mac", explanation: "Running everything",
+      title: "To the Mac", explanation: "Running the Mac itself",
       value: watts(battery.macPower), color: .purple, dotPlacement: .beforeValue)
   }
 

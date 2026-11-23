@@ -19,7 +19,8 @@ be slowed down.
 A **Battery** tab (on Macs that have one) shows the charge, time left or time until full, and
 how fast power is going in or out, in watts and mA. Below that: mAh available now, at full charge
 and when new, health, cycle count, voltage, the adapter's wattage and whether Low Power Mode is on.
-The menu bar icon shows the charge beside it.
+Anything charging from the Mac's ports is listed with the watts it's drawing, and left out of
+the figure for what the Mac itself uses. The menu bar icon shows the charge beside it.
 
 **Eco Mode**, a switch on the Battery tab, stops charging at 60% instead of full, which slows
 battery wear on a Mac that mostly stays plugged in. Turn it off to charge past 60% again, or
