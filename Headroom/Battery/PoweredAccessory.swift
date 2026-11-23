@@ -1,5 +1,10 @@
-/// Something plugged into one of the Mac's USB-C ports and taking power from it: a phone
-/// charging, a drive, a hub with its devices.
+/// What one of the Mac's USB-C ports is powering: a phone charging, a drive, a hub with its
+/// devices.
+///
+/// Power is measured per port, and only devices that talk to the Mac have names. A second
+/// device charging off a split cable is in the watts but can't be named or told apart: it
+/// never introduces itself, and what a device is allocated says little about what it draws
+/// (an iPhone allocated 12 W was measured taking 15 W).
 struct PoweredAccessory: Sendable, Equatable, Identifiable {
   /// The port's number, as macOS counts them.
   let port: Int

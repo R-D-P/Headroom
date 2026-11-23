@@ -16,6 +16,9 @@ struct TableRowView: View {
   var color: Color?
   var isTotal = false
   var dotPlacement = DotPlacement.leading
+  /// Lets a long title run past its column, into the explanation's space, instead of being cut
+  /// off. For rows titled with a name that isn't Headroom's to shorten, such as a device's.
+  var titleFitsContent = false
 
   private static let dotColumnWidth: CGFloat = 10
   private static let titleColumnWidth: CGFloat = 104
@@ -30,7 +33,9 @@ struct TableRowView: View {
       Text(title)
         .fontWeight(isTotal ? .semibold : .regular)
         .lineLimit(1)
-        .frame(width: Self.titleColumnWidth, alignment: .leading)
+        .fixedSize(horizontal: titleFitsContent, vertical: false)
+        .frame(minWidth: Self.titleColumnWidth, maxWidth: titleFitsContent ? nil : Self.titleColumnWidth, alignment: .leading)
+        .layoutPriority(titleFitsContent ? 1 : 0)
       Text(explanation ?? "")
         .foregroundStyle(.tertiary)
         .lineLimit(1)

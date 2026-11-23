@@ -19,20 +19,24 @@ struct BatteryDetailsView: View {
     ScrollView {
       if let battery {
         VStack(alignment: .leading, spacing: 18) {
-          BatteryHealthView(battery: battery)
-          section("Power flow") {
-            BatteryPowerFlowRows(battery: battery)
-          }
+          // First, because it's only there while something is plugged in, and lower down it sat
+          // out of sight until the list was scrolled.
           if !battery.accessories.isEmpty {
             section("Charging from this Mac") {
               ForEach(battery.accessories) { accessory in
                 TableRowView(
                   title: accessory.title,
-                  explanation: accessory.limitWatts.map { "Of the \(BatteryFormatting.watts($0)) it may draw" }
-                    ?? "Over USB-C",
-                  value: BatteryFormatting.watts(accessory.watts), color: .orange, dotPlacement: .beforeValue)
+                  // Measured at the port, so it covers anything else on the same cable too.
+                  explanation: accessory.limitWatts.map { "Whole port, up to \(BatteryFormatting.watts($0))" }
+                    ?? "Whole port",
+                  value: BatteryFormatting.watts(accessory.watts), color: .orange, dotPlacement: .beforeValue,
+                  titleFitsContent: true)
               }
             }
+          }
+          BatteryHealthView(battery: battery)
+          section("Power flow") {
+            BatteryPowerFlowRows(battery: battery)
           }
           section("Details") {
             TableRowView(
@@ -191,7 +195,7 @@ struct BatteryPowerFlowRows: View {
     if battery.accessoryPower > Self.idleWatts {
       TableRowView(
         title: "To accessories",
-        explanation: battery.accessories.count == 1 ? "Charging 1 device" : "Charging \(battery.accessories.count) devices",
+        explanation: battery.accessories.count == 1 ? "Out through 1 port" : "Out through \(battery.accessories.count) ports",
         value: watts(battery.accessoryPower), color: .orange, dotPlacement: .beforeValue)
     }
     TableRowView(
